@@ -30,14 +30,14 @@ def sgn(x):
 def getFace():
     global lastTimeSaved, fileCount, noFaceCount
     # Capture frame-by-frame
-    for i in range(30):
+    for i in range(30): # frame doesn't always seem to be current so read for a bit
         ret, frame = cap.read()
         # if frame is read correctly ret is True
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             exit()
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 6, minSize=(60, 60))
+    faces = face_cascade.detectMultiScale(gray, 1.1, 6, minSize=(60, 60)) # scale factor, # of neighbors
     if len(faces) > 0:
         x, y, w, h = faces[0]
         mask = np.zeros(frame.shape[:2], dtype="uint8")
@@ -63,7 +63,6 @@ def getFace():
         exit()
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=5)
     print("Pan Tilt running...")
@@ -87,5 +86,3 @@ if __name__ == '__main__':
             time.sleep(speed)
         getFace()
         time.sleep(random.random() * 3)
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
