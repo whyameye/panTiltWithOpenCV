@@ -17,7 +17,7 @@ logging.info("Pan Tilt running opening camera...")
 sock = socket.socket(socket.AF_INET,  # Internet
                      socket.SOCK_DGRAM)  # UDP
 testing = True
-if testing == True:
+if testing:
     ipaddr = "localhost"
 else:
     ipaddr = "172.16.1.255"
