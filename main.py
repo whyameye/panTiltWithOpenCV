@@ -1,12 +1,26 @@
 import random
+from typing import Any
+
 import cv2 as cv
 import numpy as np
-
+import subprocess
+import socket
 import serial
 import time
+import logging
 
-face_cascade = cv.CascadeClassifier('venv/lib/haarcascade_frontalface_default.xml')
-print("Pan Tilt running opening camera...")
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p',
+                    level=logging.DEBUG)
+
+face_cascade = cv.CascadeClassifier('haarcascade_frontalface_default.xml')
+logging.info("Pan Tilt running opening camera...")
+sock = socket.socket(socket.AF_INET,  # Internet
+                     socket.SOCK_DGRAM)  # UDP
+testing = True
+if testing == True:
+    ipaddr = "localhost"
+else:
+    ipaddr = "172.16.1.255"
 
 cap = cv.VideoCapture(2)
 
@@ -16,7 +30,6 @@ if not cap.isOpened():
 
 noFaceCount = 0
 fileCount = 0
-lastTimeSaved = time.time() * 1000
 
 
 def sgn(x):
@@ -27,17 +40,54 @@ def sgn(x):
     return 0
 
 
+def run_bash_command(cmd: str) -> Any:
+    process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+    if error:
+        raise Exception(error)
+    else:
+        return output
+
+
+def scpCopy(myFileCount):
+    if not testing:
+        for i in range(12):
+            run_bash_command("scp /tmp/warning" + str(myFileCount) +
+                             ".mp4 172.16.1." + str(i) + ":/tmp/.")
+        run_bash_command("scp /tmp/warning" + str(myFileCount) +
+                         ".mp4 172.16.1.255:/tmp/.")
+
+
+def doTheFaceStuff(faceImg):
+    global fileCount
+
+    if logging.INFO >= logging.root.level:
+        cv.imshow('img', faceImg)
+    logging.info("writing file")
+    cv.imwrite("/tmp/warning" + str(fileCount) + ".png", faceImg)
+    run_bash_command("rm /tmp/warning" + str(fileCount) + ".mp4")
+    run_bash_command("ffmpeg -loop 1 -i /tmp/warning" + str(fileCount) +
+                     ".png -c:v libx264 -t 15 -pix_fmt yuv420p -vf scale=320:240 /tmp/warning" +
+                     str(fileCount) + ".mp4")
+    scpCopy(fileCount)
+
+    # trigger Pd to show the movie (image):
+    fileCountAsc = 48 + fileCount
+    sock.sendto(fileCountAsc.to_bytes(1, "big") + b";\n", (ipaddr, 4000))
+    fileCount = (fileCount + 1) % 10
+
+
 def getFace():
-    global lastTimeSaved, fileCount, noFaceCount
+    global noFaceCount
     # Capture frame-by-frame
-    for i in range(30): # frame doesn't always seem to be current so read for a bit
+    for i in range(30):  # frame doesn't always seem to be current so read for a bit
         ret, frame = cap.read()
         # if frame is read correctly ret is True
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             exit()
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 6, minSize=(60, 60)) # scale factor, # of neighbors
+    faces = face_cascade.detectMultiScale(gray, 1.1, 6, minSize=(60, 60))  # scale factor, # of neighbors
     if len(faces) > 0:
         x, y, w, h = faces[0]
         mask = np.zeros(frame.shape[:2], dtype="uint8")
@@ -49,14 +99,11 @@ def getFace():
         newimage = cv.putText(newimage, "warning", (0, 105), cv.FONT_ITALIC, 4,
                               (0, 0, 255), 12, cv.LINE_AA, False)
         myBack[0:480, 320 - 240:320 + 240] = newimage
-
-        cv.imshow('img', myBack)
-        print("writing file")
-        cv.imwrite("/tmp/test/test" + str(fileCount) + ".png", myBack)
-        fileCount += 1
+        doTheFaceStuff(myBack)
     else:
-        print(str(noFaceCount) + ": no face detected")
-        cv.imshow('img', frame)
+        logging.info(str(noFaceCount) + ": no face detected")
+        if logging.INFO >= logging.root.level:
+            cv.imshow('img', frame)
 
         noFaceCount += 1
     if cv.waitKey(1) == ord('q'):
