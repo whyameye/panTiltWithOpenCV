@@ -122,6 +122,7 @@ if __name__ == '__main__':
     packet = bytearray()
     currentPan = 100
     currentTilt = 100
+    runTime = time.time()
 
     while True:
         time.sleep(.1)
