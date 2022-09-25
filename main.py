@@ -111,7 +111,12 @@ def getFace():
 
 
 if __name__ == '__main__':
-    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=5)
+
+    try:
+        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=5)
+    except:
+        ser = serial.Serial('/dev/ttyUSB1', 115200, timeout=5)
+
     print("Pan Tilt running...")
     time.sleep(2)
     packet = bytearray()
