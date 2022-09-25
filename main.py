@@ -124,17 +124,23 @@ if __name__ == '__main__':
     currentTilt = 100
 
     while True:
-        newPan = random.randint(50, 140)
-        newTilt = random.randint(110, 150)
-        speed = random.randint(1, 10) / 300.0
-        while (currentPan != newPan) or (currentTilt != newTilt):
-            currentPan += sgn(newPan - int(currentPan))
-            currentTilt += sgn(newTilt - int(currentTilt))
-            packet.append(255)
-            packet.append(currentPan)
-            packet.append(currentTilt)
-            ser.write(packet)
-            packet.clear()
-            time.sleep(speed)
-        getFace()
-        time.sleep(random.random() * 3)
+        time.sleep(.1)
+        if ser.in_waiting:
+            if ser.readline()[0] == 49:  # human detected
+                runTime = time.time() + 15 * 60 # run until 15 min after human detected
+                print("human detected")
+        if time.time() <= runTime:
+            newPan = random.randint(50, 140)
+            newTilt = random.randint(65, 105)  # range 40 to 115
+            speed = random.randint(1, 10) / 300.0
+            while (currentPan != newPan) or (currentTilt != newTilt):
+                currentPan += sgn(newPan - int(currentPan))
+                currentTilt += sgn(newTilt - int(currentTilt))
+                packet.append(255)
+                packet.append(currentPan)
+                packet.append(currentTilt)
+                ser.write(packet)
+                packet.clear()
+                time.sleep(speed)
+            getFace()
+            time.sleep(random.random() * 3)
