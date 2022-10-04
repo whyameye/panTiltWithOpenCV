@@ -16,7 +16,7 @@ face_cascade = cv.CascadeClassifier('haarcascade_frontalface_default.xml')
 logging.info("Pan Tilt running opening camera...")
 sock = socket.socket(socket.AF_INET,  # Internet
                      socket.SOCK_DGRAM)  # UDP
-testing = True
+testing = False
 if testing:
     ipaddr = "localhost"
 else:
@@ -30,6 +30,7 @@ if not cap.isOpened():
 
 noFaceCount = 0
 fileCount = 0
+lastTimeWarned = time.time() - 15;
 
 
 def sgn(x):
@@ -51,11 +52,11 @@ def run_bash_command(cmd: str) -> Any:
 
 def scpCopy(myFileCount):
     if not testing:
-        for i in range(12):
+        for i in range(1,13):
             run_bash_command("scp /tmp/warning" + str(myFileCount) +
-                             ".mp4 172.16.1." + str(i) + ":/tmp/.")
+                             ".mp4 user@172.16.1." + str(i) + ":/tmp/.")
         run_bash_command("scp /tmp/warning" + str(myFileCount) +
-                         ".mp4 172.16.1.255:/tmp/.")
+                         ".mp4 techartict@172.16.1.255:/tmp/.")
 
 
 def doTheFaceStuff(faceImg):
@@ -78,7 +79,7 @@ def doTheFaceStuff(faceImg):
 
 
 def getFace():
-    global noFaceCount
+    global noFaceCount, lastTimeWarned
     # Capture frame-by-frame
     for i in range(30):  # frame doesn't always seem to be current so read for a bit
         ret, frame = cap.read()
@@ -88,7 +89,8 @@ def getFace():
             exit()
     gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 6, minSize=(60, 60))  # scale factor, # of neighbors
-    if len(faces) > 0:
+    if ((len(faces) > 0) and (currentTime >= (lastTimeWarned + 15))):
+        lastTimeWarned = time.time();
         x, y, w, h = faces[0]
         mask = np.zeros(frame.shape[:2], dtype="uint8")
         cv.circle(mask, (int(x + w / 2), int(y + h / 2)), int(max(w / 2, h / 2)), 255, -1)
@@ -111,25 +113,38 @@ def getFace():
 
 
 if __name__ == '__main__':
-    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=5)
+
+    try:
+        ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=5)
+    except:
+        ser = serial.Serial('/dev/ttyUSB1', 115200, timeout=5)
+
     print("Pan Tilt running...")
     time.sleep(2)
     packet = bytearray()
     currentPan = 100
     currentTilt = 100
+    runTime = time.time()
 
     while True:
-        newPan = random.randint(50, 140)
-        newTilt = random.randint(110, 150)
-        speed = random.randint(1, 10) / 300.0
-        while (currentPan != newPan) or (currentTilt != newTilt):
-            currentPan += sgn(newPan - int(currentPan))
-            currentTilt += sgn(newTilt - int(currentTilt))
-            packet.append(255)
-            packet.append(currentPan)
-            packet.append(currentTilt)
-            ser.write(packet)
-            packet.clear()
-            time.sleep(speed)
-        getFace()
-        time.sleep(random.random() * 3)
+        time.sleep(.1)
+        if ser.in_waiting:
+            if ser.readline()[0] == 49:  # human detected
+                runTime = time.time() + 15 * 60 # run until 15 min after human detected
+                print("human detected")
+        currentTime = time.time()
+        if currentTime <= runTime:
+            newPan = random.randint(50, 170)
+            newTilt = random.randint(40, 90)  # range 40 to 115
+            speed = random.randint(1, 10) / 300.0
+            while (currentPan != newPan) or (currentTilt != newTilt):
+                currentPan += sgn(newPan - int(currentPan))
+                currentTilt += sgn(newTilt - int(currentTilt))
+                packet.append(255)
+                packet.append(currentPan)
+                packet.append(currentTilt)
+                ser.write(packet)
+                packet.clear()
+                time.sleep(speed)
+            getFace()
+            time.sleep(random.random() * 3)
